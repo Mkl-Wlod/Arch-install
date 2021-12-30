@@ -343,3 +343,23 @@ fi
 printf "enable network manager"
 arch-chroot /mnt systemctl enable NetworkManager
 
+##enable multilib
+printf "enable multilib repository? [y/n]: "
+read answer
+case "$answer" in
+	[yY]* ) sed '/\#\[multilib\]/!b;n; s/\#//g' "$etc"pacman.conf
+		sed 's/\#\[multilib\]/\[multilib\]/g' "$etc"pacman.conf
+		;;
+	*) true
+esac 
+
+##add git and yay
+printf "want to install git and yay? (An AUR Helper written in Go)? [y/n]: "
+read answer
+case "$answer" in
+	[yY]* ) pacstrap /mnt git
+		arch-chroot /mnt git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin && makepkg -si /tmp/yay-bin
+		;;
+	*) true ;;
+esac
+
