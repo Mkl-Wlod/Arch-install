@@ -35,7 +35,7 @@ while true;do
   printf "want to clean up this disk? [y/n]"
   read answer
   case "$answer" in
-    [yY]* ) wipefs -a -t gpt -f "$disk" && break;;
+    [yY]* ) dd if=/dev/zero of="$disk" bs=512 count=1 conv=notrunc && break;;
     # dd if=/dev/zero of="$disk" bs=16M status=progress
     [yY]* ) continue ;;
   esac
