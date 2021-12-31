@@ -6,22 +6,23 @@
 # add "headers" for readability
 
 #variables 
-
+disks=$(lsblk -a -o SIZE,NAME)
 bigest_disk=$(lsblk -a -b -o SIZE,NAME | sort -rn | awk 'NR==1 {print $2}')
-echo "$bigest_disk" | awk '/nvme/' > /dev/null
-if [ "$?" = "0" ];then
+is_nvme=$(echo "$bigest_disk" | awk '/nvme/')
+if [ -n "$is_nvme" ];then
   part="p"
 else
   part=""
 fi
 disk="/dev/$bigest_disk"
+disk_space=$(lsblk $disk | awk 'NR==2 {print $4}')
 etc=/mnt/etc/
 
 while true;do
-  printf "Disks\tSize\n%s\n\nChoose disk you want to use for linux or type \e[1myes\e[0m to use biggest one which is \e[1m/dev/%s\e[0m an it's size of\e[1m %s\e[0m: " "$disks" "$biggest_disk" "$biggest_disk_size"
+  printf "Disks\tSize\n%s\n\nChoose disk you want to use for linux or type \e[1myes\e[0m to use biggest one which is \e[1m%s\e[0m an it's size of\e[1m %s\e[0m: " "$disks" "$disk" "$disk_space"
 	read answer
 	case "$answer" in
-		[yY]* ) disk="/dev/$biggest_disk" && break;;
+		[yY]* ) break;;
 		* ) exist=$(echo "$disks" | awk '/'"$answer"'/' | awk 'NR==1 {print $1}') 
 		    [ -n "$answer" ] && [ "$answer" = "$exist" ] && disk="/dev/$answer"
 		    if [ "$?" != "0" ];then
@@ -48,14 +49,11 @@ if [ -n "$is_nvme" ];then
 else
   part=""
 fi
-#as far as I know /dev/sdX is allways first listed so
-#if nvme disk is present it will be used as default
-
-#if [ "$disk_size" != "$nvme" ] && [ -n "$(lsblk | awk '/nvme0n1/')" ];then && disk="$nvme" && part="p"
-
 
 #disk spacevariable
-disk_space=$(lsblk "$disk" | awk '/disk/ {print $4}')
+disk_space=$(lsblk $disk | awk 'NR==2 {print $4}')
+
+echo "$disk_space"
 
 ##memory
 mem=$(free -h | awk '/Mem:/ {print $2}')
