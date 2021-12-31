@@ -6,7 +6,7 @@
 # add "headers" for readability
 
 #variables 
-disks=$(lsblk -a -o SIZE,NAME)
+disks=$(lsblk | awk '/disk/ {print $1 "\t" $4}')
 only_disks=$(lsblk -a -o TYPE,NAME,SIZE | awk '/disk/')
 bigest_disk=$(lsblk -a -b -o SIZE,NAME | sort -rn | awk 'NR==1 {print $2}')
 is_nvme=$(echo "$bigest_disk" | awk '/nvme/')
@@ -54,8 +54,6 @@ fi
 
 #disk spacevariable
 disk_space=$(lsblk $disk | awk 'NR==2 {print $4}')
-
-echo "$disk_space"
 
 ##memory
 mem=$(free -h | awk '/Mem:/ {print $2}')
@@ -345,18 +343,19 @@ arch-chroot /mnt systemctl enable NetworkManager
 printf "enable multilib repository? [y/n]: "
 read answer
 case "$answer" in
-	[yY]* ) sed '/\#\[multilib\]/!b;n; s/\#//g' "$etc"pacman.conf
-		sed 's/\#\[multilib\]/\[multilib\]/g' "$etc"pacman.conf
+	[yY]* ) sed -i '/\#\[multilib\]/!b;n; s/\#//g' "$etc"pacman.conf
+		sed -i 's/\#\[multilib\]/\[multilib\]/g' "$etc"pacman.conf
 		;;
 	*) true
 esac 
 
-##add git and yay
+##add git and yay (makepkg issue for now)
 printf "want to install git and yay? (An AUR Helper written in Go)? [y/n]: "
 read answer
 case "$answer" in
 	[yY]* ) pacstrap /mnt git
-		arch-chroot /mnt git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin && makepkg -si /tmp/yay-bin
+		arch-chroot /mnt git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
+		makepkg -U -si /tmp/yay-bin
 		;;
 	*) true ;;
 esac
