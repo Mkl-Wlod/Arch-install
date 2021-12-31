@@ -34,15 +34,16 @@ while true;do
 		    fi
 		    ;;
 	esac
-  printf "want to clean up this disk? [y/n]"
-  read answer
-  case "$answer" in
-    [yY]* ) dd if=/dev/zero of="$disk" bs=512 count=1 conv=notrunc && break;;
-    # dd if=/dev/zero of="$disk" bs=16M status=progress
-    [yY]* ) continue ;;
-  esac
   
 done
+
+printf "want to clean up this disk? [y/n]"
+read answer
+case "$answer" in
+  [yY]* ) dd if=/dev/zero of="$disk" bs=512 count=1 conv=notrunc && break;;
+  # dd if=/dev/zero of="$disk" bs=16M status=progress
+  [yY]* ) continue ;;
+esac
 
 is_nvme=$(echo "$disk" | awk '/nvme/')
 if [ -n "$is_nvme" ];then
@@ -131,8 +132,8 @@ parted -s "$disk" -- mklabel "gpt" \
   set 1 esp on \
   mkpart P2 ext4 512MiB 100%
 mkfs.vfat -F32 "$disk""$part"1
-pvcreate "$disk""$part"2
-vgcreate arch "$disk""$part"2
+pvcreate -f "$disk""$part"2
+vgcreate -f arch "$disk""$part"2
 
 ##create lvm
 #swap partition or file if hibernation not picked 
@@ -174,9 +175,7 @@ case "$fs" in
   [bB]* ) mkfs.btrfs "$cryptroot" ;;
   *) mkfs.ext4 "$cryptroot" ;;
 esac
-mount "$cryptroot" /mnt
-mkdir /mnt/boot
-mount "$disk""$part"1 /mnt/boot
+mount "$cryptroot" /mnt && mkdir /mnt/boot && mount "$disk""$part"1 /mnt/boot
 
 ##kernel 
 printf '\e[1m\tKernel\e[0m\nYou want Long Term Support kernel? [y/n]: '
