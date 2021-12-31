@@ -7,6 +7,7 @@
 
 #variables 
 disks=$(lsblk -a -o SIZE,NAME)
+only_disks=$(lsblk -a -o TYPE,NAME,SIZE | awk '/disk/')
 bigest_disk=$(lsblk -a -b -o SIZE,NAME | sort -rn | awk 'NR==1 {print $2}')
 is_nvme=$(echo "$bigest_disk" | awk '/nvme/')
 if [ -n "$is_nvme" ];then
@@ -19,11 +20,11 @@ disk_space=$(lsblk $disk | awk 'NR==2 {print $4}')
 etc=/mnt/etc/
 
 while true;do
-  printf "Disks\tSize\n%s\n\nChoose disk you want to use for linux or type \e[1myes\e[0m to use biggest one which is \e[1m%s\e[0m an it's size of\e[1m %s\e[0m: " "$disks" "$disk" "$disk_space"
+	printf "Disks\tSize\n%s\n\nChoose disk you want to use for linux (type only name like sda or nvem0n)\nor type \e[1myes\e[0m to use biggest one which is \e[1m%s\e[0m an it's size of\e[1m %s\e[0m: " "$disks" "$disk" "$disk_space"
 	read answer
 	case "$answer" in
 		[yY]* ) break;;
-		* ) exist=$(echo "$disks" | awk '/'"$answer"'/' | awk 'NR==1 {print $1}') 
+		* ) exist=$(echo "$only_disks" | awk '/'"$answer"'/' | awk 'NR==1 {print $2}') 
 		    [ -n "$answer" ] && [ "$answer" = "$exist" ] && disk="/dev/$answer"
 		    if [ "$?" != "0" ];then
 			    printf '\n\e[1m%s\e[0m is not an disk\n\n' "$answer"
