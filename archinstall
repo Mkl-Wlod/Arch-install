@@ -20,7 +20,7 @@ disk_space=$(lsblk $disk | awk 'NR==2 {print $4}')
 etc=/mnt/etc/
 
 while true;do
-	printf "Disks\tSize\n%s\n\nChoose disk you want to use for linux (type only name like sda or nvem0n)\nor type \e[1myes\e[0m to use biggest one which is \e[1m%s\e[0m an it's size of\e[1m %s\e[0m: " "$disks" "$disk" "$disk_space"
+	printf "Disks\tSize\n%s\n\nChoose disk you want to use for linux (type only name like sda or nvme0n)\nor type \e[1myes\e[0m to use biggest one which is \e[1m%s\e[0m an it's size of\e[1m %s\e[0m: " "$disks" "$disk" "$disk_space"
 	read answer
 	case "$answer" in
 		[yY]* ) break;;
@@ -37,7 +37,7 @@ while true;do
   
 done
 
-printf "want to clean up this disk? [y/n]"
+printf "want to clean up this disk? [y/n]: "
 read answer
 case "$answer" in
   [yY]* ) dd if=/dev/zero of="$disk" bs=512 count=1 conv=notrunc && break;;
@@ -259,16 +259,37 @@ if [ "$language" = "en" ];then
         sed -i '0,/en_US.UTF/d' "$etc"locale.gen
         sed -i '/'"$lang_opt"'.UTF/s/^#//g' "$etc"locale.gen
         arch-chroot /mnt locale-gen
+    	echo "LANG=en_US.UTF-8" > "$etc"locale.conf
         ;;
       *)  
         sed -i '/'"$lang_opt"'.UTF/s/^#//g' "$etc"locale.gen
         arch-chroot /mnt locale-gen
+    	echo "LANG=$lang_opt.UTF-8" > "$etc"locale.conf
         ;;
     esac
   else
     sed -i '/'"$language.${language^^}"'.UTF/s/^#//g' "$etc"locale.gen
     arch-chroot /mnt locale-gen
+    echo "LANG=$language.${language^^}.UTF-8" > "$etc"locale.conf
 fi
+
+##Timezone
+zone_list=$(timedatectl list-timezones | awk -F / '{ print $1 }' | uniq | tr '\r\n' '\t')
+while true;do
+printf '%s\nChoose timezone: ' "$zone_list"
+read zone
+if [ -n "$zone" ];then
+	requested_zone=$(timedatectl list-timezones | grep "$zone" | tr '\r\n' '\t')
+	printf '%s\nChoose timezone for "%s": ' "$requested_zone" "$zone"
+	read new_zone
+	requested_zone_output=$(timedatectl list-timezones | awk -F / '{ print $1 }' | grep "$zone" | tr '\r\n' '\t\n')
+	exist_zone=$(echo "$requested_zone_output" | grep -o "$new_zone")
+	[ -n "$exist_zone" ] && timedatectl set-timezone "$new_zone" && break
+else
+	continue
+fi
+done
+	
 ##hostname
 printf 'What hostname you want to have?\nhostname: '
 read host
@@ -325,7 +346,7 @@ fi
 
 ##create swapfile if no hibernation setup
 if [ "$is_swap_file" = "yes" ];then
-  printf "Creating swap file"
+  printf "Creating swap file\n"
   arch-chroot /mnt dd if=/dev/zero of=/swapfile bs=1M count=$swap_size status=progress
   arch-chroot /mnt mkswap /swapfile
   arch-chroot /mnt chmod 600 /swapfile 
@@ -355,7 +376,7 @@ read answer
 case "$answer" in
 	[yY]* ) pacstrap /mnt git
 		arch-chroot /mnt git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-		makepkg -U -si /tmp/yay-bin
+		makepkg -si /tmp/yay-bin
 		;;
 	*) true ;;
 esac
