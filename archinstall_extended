@@ -1,0 +1,465 @@
+#!/bin/sh
+
+## TODO: create if statement for nvme for partitions
+# loop for many users
+# ability to do step again if error appears
+# add "headers" for readability
+
+#variables 
+disks=$(lsblk | awk '/disk/ {print $1 "\t" $4}')
+biggest_disk=$(lsblk -b -o SIZE,NAME | sort -rn | awk 'NR==1 {print $2}')
+biggest_disk_size=$(lsblk /dev/$biggest_disk | awk '/disk/ {print $4}')
+etc=/mnt/etc/
+
+
+while true;do
+  printf "Disks\tSize\n%s\n\nChoose disk you want to use for linux or type \e[1myes\e[0m to use biggest one which is \e[1m/dev/%s\e[0m an it's size of\e[1m %s\e[0m: " "$disks" "$biggest_disk" "$biggest_disk_size"
+	read answer
+	case "$answer" in
+		[yY]* ) disk="/dev/$biggest_disk" && break;;
+		* ) exist=$(echo "$disks" | awk '/'"$answer"'/' | awk 'NR==1 {print $1}') 
+		    [ -n "$answer" ] && [ "$answer" = "$exist" ] && disk="/dev/$answer"
+		    if [ "$?" != "0" ];then
+			    printf '\n\e[1m%s\e[0m is not an disk\n\n' "$answer"
+			    continue
+			  else
+				  break
+		    fi
+		    ;;
+	esac
+  printf "want to clean up this disk? [y/n]"
+  read answer
+  case "$answer" in
+    [yY]* ) wipefs -a -t gpt -f "$disk" &&  clean_install="yes" && break;;
+    [nN]* ) continue ;;
+  esac 
+done
+
+is_nvme=$(echo "$disk" | awk '/nvme/')
+if [ -n "$is_nvme" ];then
+  part="p"
+else
+  part=""
+fi
+
+#as far as I know /dev/sdX is allways first listed so
+#if nvme disk is present it will be used as default
+while true;do
+[ -n "$clean_install" ] && break
+	disk_partitions=$(lsblk "$disk" | awk '/part/ {print $1}')
+	[ -z "$disk_partitions" ] && clean_install="yes" && break
+	disk_gpt=$(parted "$disk" print | awk '/gpt/ {print $3}')
+	if [ "$disk_gpt" = "gpt" ];then
+    mount "$disk""$boot_partition_num"
+	  boot_partition=$(parted "$disk" print | awk '/esp/ {print $0}')
+	  boot_partition_num=$(echo "$boot_partition" | awk '{print $1}')
+	  boot_check_size=$(df -h "$disk""$boot_partition_num" | awk '/[0-9]/ {print $4}')  
+	  boot_partition_value=$(echo ${boot_check_size::-2} | awk -F . '{print $1}')
+	  boot_partition_size=$(echo $boot_check_size | sed 's/.*[0-9]//g')
+	  if [ -n "$boot_partition" ] && [ "$boot_partition_size" = "GB" ] || [ "$boot_partition_value" -gt "256" ];then
+	  	printf "Want to use existing partitions? [y/n]: "
+	  	read answer
+	  	case "$answer" in
+	  	        [yY]* ) mount "$disk""$boot_partition_num" /mnt/boot && break ;;
+	  	        [nN]* ) wipefs -a -t gpt -f "$disk" && clean_install="yes" && break ;;
+	  	esac
+	  elif [ "$boot_partition_value" -gt "100" ] && [ "$boot_partition_size" = "MB" ];then
+	    printf "boot partition already exist and it's should be enought space to use when disable fallback linux image\nWant to proceed without fallback image? [y/n]: "
+	    read answer
+	    case "$answer" in
+	      [yY]* ) do_remove_fallback="yes" && mount "$disk""$boot_partition_num" /mnt/boot && break;;
+	    	[nN]*)
+			    printf '%c\nWant to do clean setup? [y/n]: ' "$message"
+			    read answer
+			    case "$answer" in
+	           		[yY]* )	clean_install="yes" && break ;;
+	           		[nN]* )	exit ;;
+			    esac
+			    ;;
+	  	esac
+	  else
+		  printf "partition is too small want clean setup? [y/n]: "
+			read answer
+			case "$answer" in
+	       		[yY]* )	clean_install="yes" && break ;;
+	       		[nN]* )	exit ;;
+			esac
+	  fi
+	else
+		[ -z "$boot_partition" ] && message="no boot partition"
+		[ "$boot_partition_value" -lt "100" ] && [ "$boot_partition_size" = "MB" ] && message="boot partition is too small"
+		printf '%c\nWant to do clean setup? [y/n]: ' "$message"
+		read answer
+		case "$answer" in
+	       		[yY]* )	clean_install="yes" && break ;;
+	       		[nN]* )	exit ;;
+		esac
+
+	fi
+done
+
+#remove_fallback=$(sed -i "s/fallback/#fallback/g ; s/..fallback.*//; s/..default./('default')/" "$etc"mkinitcpio.d/linux.preset)
+#
+while true;do
+if [ "$clean_install" = "yes" ];then
+	#disk spacevariable
+	disk_space=$(lsblk "$disk" | awk '/disk/ {print $4}')
+	
+	##memory
+	mem=$(free -h | awk '/Mem:/ {print $2}')
+	mem_extend=$(free -m | awk '/Mem:/ {print $2}')
+	#mem_val=${mem::-2}
+	
+	#check for swap setup
+	printf "\e[1m\tSwap\e[0m\nYou have \e[1m%s\e[0m of disk space and \e[1m%s\e[0m of memory
+	Want you use swap? [y/n]: " "$disk_space" "$mem"
+	read swp
+	case "$swp" in
+	  [yY]* ) swap="yes";;
+	  [nN]* ) swap="no";;
+	esac
+	
+	#swap setup
+	if [ "$swap" = "yes" ];then
+	  printf "\e[1m\tHibernation\e[0m"
+	  printf "
+	  \e[1mAmount of ram\t|\tswap space\t\t|\tswap with hibernation\e[0m
+	  ≤ 2GB\t\t|\t2X RAM\t\t\t|\t3X RAM
+	  [2-8GB]\t|\t= RAM\t\t\t|\t2X RAM
+	  [8-64GB]\t|\t4G up to 0.5X RAM\t|\t1.5X RAM
+	  >64GB\t\t|\tMinimum 4GB\t\t|\tHibernation not recommended
+	  "
+	  printf "You have \e[1m%s\e[0m of disk space and \e[1m%s\e[0m of memory
+	  Want you use swap for hibernation? [y/n]: " "$disk_space" "$mem"
+	  read hib
+	  case "$hib" in
+	    [yY]* ) hibernation="yes";;
+	    [nN]* ) hibernation="no";;
+	  esac
+	
+	  ##[SWAP]
+	  #hibernation
+	  if [ "$hibernation" = "yes" ];then
+	    if [ "$mem_extend" -le "2000" ];then
+	      swap_size=$(echo "$mem_extend*3" | bc -l)
+	    elif [ "$mem_extend" -gt "2000" ] && [ "$mem_extend" -le "8000" ];then
+	      swap_size=$(echo "$mem_extend*2" | bc -l)
+	    elif [ "$mem_extend" -gt "8000" ] && [ "$mem_extend" -le "64000" ];then
+	      swap_size=$(echo "$mem_extend*1.5" | bc -l)
+	    else
+	      printf "Choose how much you want swap space: "
+	      read unrec_hib
+	      swap_size=$($unrec_hib)
+	    fi
+	  else
+	  #swap no hib
+	    if [ "$mem_extend" -le "2000" ];then
+	      swap_size=$(echo "$mem_extend*2" | bc -l)
+	    elif [ "$mem_extend" -gt "2000" ] && [ "$mem_extend" -le "8000" ];then
+	      swap_size="$mem_extend"
+	    else 
+	      printf "You have %s of disk space and %s of memory
+	      Type value of \e[1mmegabytes (8G = 8000)\e[0m you want or type \e[1mn\e[0m for non swap
+	      how much swap space you wan to allocate?: " "$disk_space" "$mem"
+	      read swap_own
+	      case "$swap_own" in
+	        [0-9]* ) swap_size="$swap_own";;
+	        [nN]* ) swap="no";;
+	      esac
+	    fi
+	  fi
+	else
+	  swap="no"
+	fi
+	
+	##partitions setup
+	#create boot partition prepare rest of disk or lvm
+  while true;do
+	printf "\e[1m\tPartitioning\e[0m\nCreate boot partition\n"
+	parted -s "$disk" -- mklabel "gpt" \
+	  mkpart esp fat32 1MiB 512MiB \
+	  set 1 esp on \
+	  mkpart P2 512MiB 100%
+	mkfs.vfat -F32 "$disk""$part"1
+	pvcreate "$disk""$part"2
+	vgcreate arch "$disk""$part"2
+	##create lvm
+	#swap partition or file if hibernation not picked 
+	if [ "$swap" = "yes" ] && [ "$hibernation" = "yes" ];then
+	  lvcreate -L "$swap_size"M arch -n swap -y
+	  lvcreate -l +100%FREE arch -n home -y
+	  mkswap /dev/mapper/arch-swap
+	  swapon /dev/mapper/arch-swap
+    break
+	elif [ "$swap" = "yes" ] && [ "$hibernation" = "no" ];then
+	  lvcreate -l +100%FREE arch -n home -y
+	  #variable is used at the and to create swap file on new system
+	  is_swap_file="yes"
+    break
+	else
+	  lvcreate -l +100%FREE arch -n home -y
+    break
+	fi
+  done
+  break
+fi
+#check for biggest partition
+check_biggest_part=$(parted "$disk" unit MB print | awk '$1~/[0-9]/ {print $4 "\t" $1}' | sed 's/[aA-zZ]//g' | sort -rn | head -n 1)
+highest_part_num=$(echo $check_biggest_part | awk '{print $2}' | sort -rn | head -n 1)
+#$disk_partitions
+disk_partitions=$(lsblk "$disk" | awk '/part/ {print $1}')
+resize_ntfs() {
+	while true;do
+		printf "\e[1m\tPartitioning\n%s\e[0m\nChoose partition number you want to use for root partition [0-9] or type \e[1myes \e[0mif you want to use biggest partition wich is %s: " "$disk_partitions" $(echo "$check_biggest_part" | awk '{print $2}')
+		read answer
+		echo "$answer"
+		case "$answer" in
+		        [yY]* ) root_part="$(echo $check_biggest_part | awk '{print $2}')" && break ;;
+		        [0-9]* ) 
+				if [ "$answer" -le "$highest_part_num" ];then
+				        root_part="$answer" && break
+				else
+					continue
+				fi
+				;;
+		        * ) echo "wrong partition" && continue ;;
+		esac
+		part_fs=$(lsblk -fs "$disk""$root_part" | awk '{print $2}')
+	done
+	
+	mount "$disk""$root_part" /mnt
+	
+	ntfs_part_size=$(df -h "$disk""$root_part" | awk '/[0-9]/ {print $2}')
+	ntfs_avail_space=$(df -h "$disk""$root_part" | awk '/[0-9]/ {print $2}')
+	
+	umount /mnt
+	
+	while true; do
+		printf "This partition is have %s space and %s of available space\nHow much space you want to allocate for root partition? (specify in G): " "$ntfs_part_size" "$ntfs_avail_space"
+		ntfs_part_size=$(echo "$ntfs_part_size" | sed 's/[aA-zZ]//g')
+		ntfs_avail_space=$(echo "$ntfs_avail_space" | sed 's/[aA-zZ]//g')
+		read answer
+		answer=$(echo "$answer" | sed 's/[aA-zZ]//g' )
+		case "$answer" in
+			[0-9]* ) 
+				[ "$answer" -gt "$ntfs_avail_space" ] && continue	
+				required_space="$answer"
+				;;
+			* )  echo "wrong size" ;;
+		esac
+		to_subtract=$(echo "$ntfs_avail_space-$required_space" | bc)
+		ntfsresize --size "$to_subtract"G "$disk""$root_part"
+		start_sector=$(parted "$disk" unit s print | awk '$1~/'"$root_part"'/ {print $2}' | sed 's/[aA-zZ]//g')
+		sector_size=$(parted "$disk""$root_part" unit s print | awk '/Sector/ {print $4}' | sed 's/[aA-zZ]//g' | awk -F / '{print $1}')
+		ntfsfix -d "$disk""$root_part"
+		cluster_size=$(ntfsinfo -m "$disk""$root_part" | awk '/Cluster.Size/ {print $3}')
+		total_clusters=$(ntfsinfo -m "$disk""$root_part" | awk '/Volume.Size/ {print $5}')
+		new_size=$(echo "$cluster_size*$total_clusters/$sector_size"| bc )
+		ntfs_end_sector=$( echo "$start_sector+$new_size" | bc )
+		parted -s "$disk" rm $root_part \
+			mkpart "windowsdisk" ntfs "$start_sector"s "$ntfs_end_sector"s
+	
+		space=$(lsblk -b "$disk" | awk '$4~/[0-9]/ {ORS=" "; print $4}')
+		disk_space_bytes=$(echo $space | awk 'NR==1 {print $1}')
+		rest_val=$(echo "$space" | awk '{ $1=""; print $0}' | sed 's/ /-/g')
+		
+		
+		cal1=$(echo "$disk_space_bytes$rest_val" | bc)
+		cal2=$(echo "$start_sector+$cal1" | bc)
+		cal3=$(echo "$disk_space_bytes-$cal1" | bc)
+		parted -s "$disk" mkpart P2 ext4 "$cal3"B 100%
+		break
+	done
+}
+##cryptsetup
+printf "\e[1m\tSetting up encryption to root partition\e[0m\n"
+printf 'Creating encrypted root partition\n'
+while true;do
+  cryptsetup -y luksFormat /dev/mapper/arch-home
+  if [ "$?" != "0" ];then
+    continue
+  else
+    break
+  fi
+done
+printf "\nMounting encrypted partition, enter password again\n"
+cryptsetup open /dev/mapper/arch-home cryptroot
+cryptroot="/dev/mapper/cryptroot" 
+
+##create filesystem on encrypted partiiton and mount them
+printf "\e[1m\tChoose file system to root partition\e[0m\nPossibilities:\next4\tbtrfs\txfs\n"
+printf "Filesystem: "
+read fs
+case "$fs" in 
+  [eE]* ) mkfs.ext4 "$cryptroot" ;;
+  [xX]* ) mkfs.xfs "$cryptroot" ;;
+  [bB]* ) mkfs.btrfs "$cryptroot" ;;
+  *) mkfs.ext4 "$cryptroot" ;;
+esac
+mount "$cryptroot" /mnt
+mkdir /mnt/boot
+mount "$disk""$part"1 /mnt/boot
+
+##kernel 
+printf '\e[1m\tKernel\e[0m\nYou want Long Term Support kernel? [y/n]: '
+read linux
+case "$linux" in
+  [Yy]* ) kernel="linux-lts" ;;
+  [Nn]* ) kernel="linux";;
+esac 
+
+##bootloader define
+printf '\e[1m\tBootloader\e[0m\nWhich bootloader you want to use? [systemd/efistub]: '
+read boot
+case "$boot" in
+  [eE]* ) boot_loader="efibootmgr" ;;
+  [sS]* ) boot_loader="bootctl" ;;
+esac 
+
+##install needed packages to new system and generate fstab file
+printf "\e[1m\tInstall packages\e[0m\n"
+pacstrap /mnt base base-devel $kernel linux-firmware vim efibootmgr lvm2 networkmanager
+genfstab -U /mnt >> /mnt/etc/fstab
+
+##users 
+printf "\e[1m\tUsers\e[0m\nCreate password for root\n"
+while true;do
+    printf "Create password for root\n"
+    arch-chroot /mnt passwd root
+  if [ "$?" != "0" ];then 
+    continue
+  else
+    break
+  fi
+done
+
+printf 'Create privileged users\n'
+while true;do
+  printf '\nType username you want to add or type exit\nusername: '
+  read name
+  existing_users=$(awk -F : '/'"$name"'/ {print $1}' "$etc"/passwd)
+  if [ "$name" = "exit" ];then
+    break
+  else
+    [ "$name" = "$existing_users" ] && printf 'user \e[1m%s\e[0m existing, user not created' "$name" && continue
+  fi
+  printf "you want to use name %s? [y/n]: " $name
+  read answer
+  case "$answer" in
+    [Yy]* ) arch-chroot /mnt useradd -m -G wheel $name 
+      while true;do
+          printf 'Create password for %s\n' "$name"
+          arch-chroot /mnt passwd "$name"
+        if [ "$?" != "0" ];then
+          continue
+        else
+          break
+        fi
+      done
+      ;;
+    [Nn]* ) printf 'user %s not created \n\n' $name ;;
+      *) break ;;
+  esac
+done
+
+printf 'Allow privileged users to excute commands without password [y/n]: '
+read answer
+case "$answer" in
+  [Yy]* ) sed -i '/NOPASSWD/s/^# //g' "$etc"sudoers ;;
+  [Nn]* ) sed -i '0,/%wheel/s/^# //g' "$etc"sudoers ;;
+esac
+echo "succeed"
+
+##language setup
+printf "\e[1m\tLanguage Setup\e[0m
+choose your language by typing shorted name (example: en pl fr)\nLanguage: "
+read language
+if [ "$language" = "en" ];then
+    possibilities=$(awk '/#en/ {print $1}' "$etc"locale.gen |\
+    sed 's/\..*// ; s/^#//g' | awk '{ ORS=" "; print $1 "\t"}' | uniq)
+        printf '%s\nchoose english variant: ' "$possibilities" 
+    read lang_opt
+    case "$lang_opt" in
+      en_US) 
+        sed -i '0,/en_US.UTF/d' "$etc"locale.gen
+        sed -i '/'"$lang_opt"'.UTF/s/^#//g' "$etc"locale.gen
+        arch-chroot /mnt locale-gen
+        ;;
+      *)  
+        sed -i '/'"$lang_opt"'.UTF/s/^#//g' "$etc"locale.gen
+        arch-chroot /mnt locale-gen
+        ;;
+    esac
+  else
+    sed -i '/'"$language.${language^^}"'.UTF/s/^#//g' "$etc"locale.gen
+    arch-chroot /mnt locale-gen
+fi
+##hostname
+printf 'What hostname you want to have?\nhostname: '
+read host
+echo "$host" > "$etc"hostname
+
+## Boot loader setup
+#efistub for non nvme non hibernation
+if [ "$boot_loader" = "efibootmgr" ];then
+  if [ "$hibernation" = "yes" ];then
+    arch-chroot /mnt efibootmgr --disk "$disk" --part 1 --create --label "Arch Linux" \
+      --loader /vmlinuz-$kernel --unicode "cryptdevice=/dev/mapper/arch-home:cryptroot root=/dev/mapper/cryptroot rw resume=/dev/mapper/arch-swap initrd=\initramfs-$kernel.img"
+  
+    hook="HOOKS=(base udev autodetect modconf block lvm2 encrypt resume filesystems keyboard fsck)"
+    sed -i 's/^HOOKS.*/'"$hook"'/g' "$etc"mkinitcpio.conf
+
+    arch-chroot /mnt mkinitcpio -p $kernel
+  else
+    arch-chroot /mnt efibootmgr --disk "$disk" --part 1 --create --label "Arch Linux" \
+      --loader /vmlinuz-$kernel --unicode "cryptdevice=/dev/mapper/arch-home:cryptroot root=/dev/mapper/cryptroot rw initrd=\initramfs-$kernel.img"
+  
+    hook="HOOKS=(base udev autodetect modconf block lvm2 encrypt filesystems keyboard fsck)"
+    sed -i 's/^HOOKS.*/'"$hook"'/g' "$etc"mkinitcpio.conf
+
+    arch-chroot /mnt mkinitcpio -p $kernel
+  fi
+else
+#systemd-boot
+  arch-chroot /mnt bootctl install
+  arch_entry() {
+    sed -i '/timeout/s/^#//g ; s/default.*/default arch/g' /mnt/boot/loader/loader.conf
+    echo "
+    title Arch
+    linux /vmlinuz-$kernel
+    initrd /initramfs-$kernel.img
+    options rw cryptdevice=/dev/mapper/arch-home:cryptroot root=/dev/mapper/cryptroot
+    options resume=/dev/mapper/arch-swap" > /mnt/boot/loader/entries/arch.conf
+  }
+  if [ "$hibernation" = "yes" ];then
+    arch_entry
+    sed -i 's/^ .//g' /mnt/boot/loader/entries/arch.conf
+    hook="HOOKS=(base udev autodetect modconf block lvm2 encrypt resume filesystems keyboard fsck)"
+    sed -i 's/^HOOKS.*/'"$hook"'/g' "$etc"mkinitcpio.conf
+
+    arch-chroot /mnt mkinitcpio -p $kernel
+  else
+    arch_entry
+    sed -i 's/^ .//g' /mnt/boot/loader/entries/arch.conf
+    hook="HOOKS=(base udev autodetect modconf block lvm2 encrypt filesystems keyboard fsck)"
+    sed -i 's/^HOOKS.*/'"$hook"'/g' "$etc"mkinitcpio.conf
+
+    arch-chroot /mnt mkinitcpio -p $kernel
+  fi
+fi
+
+##create swapfile if no hibernation setup
+if [ "$is_swap_file" = "yes" ];then
+  printf "Creating swap file"
+  arch-chroot /mnt dd if=/dev/zero of=/swapfile bs=1M count=$swap_size status=progress
+  arch-chroot /mnt mkswap /swapfile
+  arch-chroot /mnt chmod 600 /swapfile 
+  arch-chroot /mnt swapon /swapfile
+  echo "/swapfile none swap defaults 0 0" >> "$etc"fstab
+else
+  true
+fi
+
+##enable network manager
+printf "enable network manager"
+arch-chroot /mnt systemctl enable NetworkManager
