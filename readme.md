@@ -10,9 +10,10 @@
 - install long term support kernel (LTS)
 
 
-### Issues
+#### Issues
 there is too many issues for now, in first script biggest issues is try to install when other partitions exist and timezone creation
 
+#### Plans
 At the end there will be one script, that will manage existing partitions, maybe option to not use lvm and cryptsetup
 install arch on external drive
 
