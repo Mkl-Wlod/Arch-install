@@ -1,10 +1,5 @@
 #!/bin/sh
 
-## TODO: create if statement for nvme for partitions
-# loop for many users
-# ability to do step again if error appears
-# add "headers" for readability
-
 #variables 
 disks=$(lsblk | awk '/disk/ {print $1 "\t" $4}')
 only_disks=$(lsblk -a -o TYPE,NAME,SIZE | awk '/disk/')
@@ -41,8 +36,7 @@ printf "want to clean up this disk? [y/n]: "
 read answer
 case "$answer" in
   [yY]* ) dd if=/dev/zero of="$disk" bs=16M status=progress ;;
-  # dd if=/dev/zero of="$disk" bs=16M status=progress
-  [yY]* ) continue ;;
+  [nN]* ) true ;;
 esac
 
 is_nvme=$(echo "$disk" | awk '/nvme/')
@@ -274,22 +268,8 @@ if [ "$language" = "en" ];then
 fi
 
 ##Timezone
-zone_list=$(timedatectl list-timezones | awk -F / '{ print $1 }' | uniq | tr '\r\n' '\t')
-while true;do
-printf '%s\nChoose timezone: ' "$zone_list"
-read zone
-if [ -n "$zone" ];then
-	requested_zone=$(timedatectl list-timezones | grep "$zone" | tr '\r\n' '\t')
-	printf '%s\nChoose timezone for "%s": ' "$requested_zone" "$zone"
-	read new_zone
-	requested_zone_output=$(timedatectl list-timezones | awk -F / '{ print $1 }' | grep "$zone" | tr '\r\n' '\t\n')
-	exist_zone=$(echo "$requested_zone_output" | grep -o "$new_zone")
-	[ -n "$exist_zone" ] && timedatectl set-timezone "$new_zone" && break
-else
-	continue
-fi
-done
-	
+. ./scripts/timezone.sh
+
 ##hostname
 printf 'What hostname you want to have?\nhostname: '
 read host
