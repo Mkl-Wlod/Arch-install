@@ -191,84 +191,13 @@ pacstrap /mnt base base-devel $kernel linux-firmware vim efibootmgr lvm2 network
 genfstab -U /mnt >> /mnt/etc/fstab
 
 ##users 
-printf "\e[1m\tUsers\e[0m\n"
-while true;do
-    printf "Create password for root\n"
-    arch-chroot /mnt passwd root
-  if [ "$?" != "0" ];then 
-    continue
-  else
-    break
-  fi
-done
-
-printf 'Create privileged users\n'
-while true;do
-  printf '\nType username you want to add or type exit\nusername: '
-  read name
-  existing_users=$(awk -F : '/'"$name"'/ {print $1}' "$etc"/passwd)
-  if [ "$name" = "exit" ];then
-    break
-  else
-    [ "$name" = "$existing_users" ] && printf 'user \e[1m%s\e[0m existing, user not created' "$name" && continue
-  fi
-  printf "you want to use name %s? [y/n]: " $name
-  read answer
-  case "$answer" in
-    [Yy]* ) arch-chroot /mnt useradd -m -G wheel $name 
-      while true;do
-          printf 'Create password for %s\n' "$name"
-          arch-chroot /mnt passwd "$name"
-        if [ "$?" != "0" ];then
-          continue
-        else
-          break
-        fi
-      done
-      ;;
-    [Nn]* ) printf 'user %s not created \n\n' $name ;;
-      *) break ;;
-  esac
-done
-
-printf 'Allow privileged users to excute commands without password [y/n]: '
-read answer
-case "$answer" in
-  [Yy]* ) sed -i '/NOPASSWD/s/^# //g' "$etc"sudoers ;;
-  [Nn]* ) sed -i '0,/%wheel/s/^# //g' "$etc"sudoers ;;
-esac
-echo "succeed"
+source ./scripts/users.sh
 
 ##language setup
-printf "\e[1m\tLanguage Setup\e[0m
-choose your language by typing shorted name (example: en pl fr)\nLanguage: "
-read language
-if [ "$language" = "en" ];then
-    possibilities=$(awk '/#en/ {print $1}' "$etc"locale.gen |\
-    sed 's/\..*// ; s/^#//g' | awk '{ ORS=" "; print $1 "\t"}' | uniq)
-        printf '%s\nchoose english variant: ' "$possibilities" 
-    read lang_opt
-    case "$lang_opt" in
-      en_US) 
-        sed -i '0,/en_US.UTF/d' "$etc"locale.gen
-        sed -i '/'"$lang_opt"'.UTF/s/^#//g' "$etc"locale.gen
-        arch-chroot /mnt locale-gen
-    	echo "LANG=en_US.UTF-8" > "$etc"locale.conf
-        ;;
-      *)  
-        sed -i '/'"$lang_opt"'.UTF/s/^#//g' "$etc"locale.gen
-        arch-chroot /mnt locale-gen
-    	echo "LANG=$lang_opt.UTF-8" > "$etc"locale.conf
-        ;;
-    esac
-  else
-    sed -i '/'"$language.${language^^}"'.UTF/s/^#//g' "$etc"locale.gen
-    arch-chroot /mnt locale-gen
-    echo "LANG=$language.${language^^}.UTF-8" > "$etc"locale.conf
-fi
+source ./scripts/locale.sh
 
 ##Timezone
-. ./scripts/timezone.sh
+source ./scripts/timezone.sh
 
 ##hostname
 printf 'What hostname you want to have?\nhostname: '
