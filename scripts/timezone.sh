@@ -8,7 +8,7 @@ while true;do
 printf 'locale setup\nyour possible timezone is "%s", want to use this timezone? [y/n]: ' "$timezone"
 read answer
 case "$answer" in
-	[yY]* ) timedatectl set-timezone "$timezone" && echo "timezone set to $timezone" && break ;;
+	[yY]* ) arch-chroot /mnt timedatectl set-timezone "$timezone" && echo "timezone set to $timezone" && break ;;
 	*)
 	zone_list_full=$(timedatectl list-timezones)
 	zone_list=$(timedatectl list-timezones | awk -F / '{ print $1 }' | uniq | tr '\r\n' '\t')
@@ -22,7 +22,7 @@ case "$answer" in
 		exist_zone=$(echo "$zone_list_full" | grep -o "$new_zone")
 		[ -z "$(echo $new_zone | awk '/\//')" ] && new_zone="$zone/$new_zone"
 		[ -z "$exist_zone" ] && continue
-		timedatectl set-timezone "$new_zone"
+		arch-chroot /mnt timedatectl set-timezone "$new_zone"
 		[ "$?" -eq "0" ] && echo "timezone set to $new_zone" && break
 	else
 		continue
