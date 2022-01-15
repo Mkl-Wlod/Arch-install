@@ -120,11 +120,10 @@ fi
 #create boot partition prepare rest of disk or lvm
 printf "\e[1m\tPartitioning\e[0m\nCreate boot partition\n"
 parted -s "$disk" -- mklabel "msdos" \
-  mkpart boot ext2 1MiB 256MiB \
-  mkpart P2 ext4 515MiB 100%
-mkfs.vfat -F32 "$disk""$part"1
-pvcreate -f "$disk""$part"2
-vgcreate -f arch "$disk""$part"2
+  	mkpart primary ext4 1MiB 100% \
+	set 1 boot on
+pvcreate -f "$disk""$part"1
+vgcreate -f arch "$disk""$part"1
 
 ##create lvm
 #swap partition or file if hibernation not picked 
@@ -177,7 +176,7 @@ case "$linux" in
 esac 
 
 ##bootloader define
-printf '\e[1m\tBootloader\e[0m\nWhich bootloader you want to use? [systemd/efistub]: '
+printf '\e[1m\tBootloader\e[0m\nWhich bootloader you want to use? [systemd/grub]: '
 read boot
 case "$boot" in
   [gG]* ) boot_loader="grub" ;;
@@ -210,10 +209,22 @@ swap_uuid=$(lsblk -o UUID,NAME "$disk" | awk '/swap/ {print $1}')
 
 #grub
 if [ "$boot_loader" = "grub" ];then
-	[ "$hibernation" = "yes" ] && resume="resume=UUID=$swap_uuid"
-	sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT.*/GRUB_CMDLINE_LINUX_DEFAULT="cryptdevice=UUID='"$uuid"':cryptroot root=/dev/mapper/cryptroot '"$resume"'"
-/g'
+  if [ "$hibernation" = "yes" ];then
+	resume="resume=UUID=$swap_uuid"
+	sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT.*/GRUB_CMDLINE_LINUX_DEFAULT="cryptdevice=UUID='"$uuid"':cryptroot root=/dev/mapper/cryptroot '"$resume"'"/g' /mnt/etc/default/grub
+    hook="HOOKS=(base udev autodetect modconf block lvm2 encrypt resume filesystems keyboard fsck)"
+    sed -i 's/^HOOKS.*/'"$hook"'/g' "$etc"mkinitcpio.conf
+
 	arch-chroot /mnt grub-install --target=i386-pc $disk
+    arch-chroot /mnt mkinitcpio -p $kernel
+  else
+    hook="HOOKS=(base udev autodetect modconf block lvm2 encrypt filesystems keyboard fsck)"
+    sed -i 's/^HOOKS.*/'"$hook"'/g' "$etc"mkinitcpio.conf
+	sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT.*/GRUB_CMDLINE_LINUX_DEFAULT="cryptdevice=UUID='"$uuid"':cryptroot root=/dev/mapper/cryptroot"/g' /mnt/etc/default/grub
+
+	arch-chroot /mnt grub-install --target=i386-pc $disk
+    arch-chroot /mnt mkinitcpio -p $kernel
+  fi
 else	
 
 #systemd-boot
