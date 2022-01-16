@@ -15,18 +15,21 @@ if [ "$language" = "en" ];then
         sed -i '/en_US.UTF/s/^#//g' /mnt/etc/locale.gen
         arch-chroot /mnt locale-gen
     	echo "LANG=en_US.UTF-8" > /mnt/etc/locale.conf
+	break
         ;;
       *)  
 	[ -z "$(echo $lang_opt | awk '/_/')" ] && lang_opt="en_$new_zone"
         sed -i '/'"$lang_opt"'.UTF/s/^#//g' /mnt/etc/locale.gen
         arch-chroot /mnt locale-gen
     	echo "LANG=$lang_opt.UTF-8" > /mnt/etc/locale.conf
+	break
         ;;
     esac
   else
     sed -i '/'"$language.${language^^}"'.UTF/s/^#//g' /mnt/etc/locale.gen
     arch-chroot /mnt locale-gen
     echo "LANG=$language.${language^^}.UTF-8" > /mnt/etc/locale.conf
+	break
 fi
 done
 
