@@ -36,6 +36,7 @@ printf "want to clean up this disk? for now it's needed if any partition present
 read answer
 case "$answer" in
 	[yY]* ) 
+	  cryptsetup close $(lsblk | awk '/crypt/ {print $1}' | sed "s/[^[:alnum:]]//g")
 	  lvremove -y $(lsblk | awk -F - '/lvm/ {print $1}' | sed "s/[^[:alnum:]]//g")
 	  wipefs -a "$disk" ;;
 	[nN]* ) true ;;
