@@ -9,7 +9,7 @@ you can use it in archiso by download git and jq (if you want to check your time
 ```sh
 pacman -Sy git jq
 git clone https://github.com/Mkl-Wlod/Arch-install.git
-./Arch-install/archinstall
+cd Arch-install/ && ./archinstall
 ```
 
 ### Functionality
