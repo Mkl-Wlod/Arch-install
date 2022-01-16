@@ -37,7 +37,7 @@ read answer
 case "$answer" in
   [yY]* ) 
 	  lvremove -y $(lsblk | awk -F - '/lvm/ {print $1}' | sed "s/[^[:alnum:]]//g")
-	  wipefs -a "$disk"
+	  wipefs -a "$disk" ;;
 	  [nN]* ) true ;;
 esac
 
