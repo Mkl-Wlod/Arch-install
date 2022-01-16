@@ -32,11 +32,13 @@ while true;do
   
 done
 
-printf "want to clean up this disk? [y/n]: "
+printf "want to clean up this disk? for now it's needed if any partition present [y/n]: "
 read answer
 case "$answer" in
-  [yY]* ) dd if=/dev/zero of="$disk" bs=16M status=progress ;;
-  [nN]* ) true ;;
+  [yY]* ) 
+	  lvremove -y $(lsblk | awk -F - '/lvm/ {print $1}' | sed "s/[^[:alnum:]]//g")
+	  wipefs -a "$disk"
+	  [nN]* ) true ;;
 esac
 
 is_nvme=$(echo "$disk" | awk '/nvme/')
