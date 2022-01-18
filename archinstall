@@ -269,7 +269,7 @@ else
 fi
 
 ##enable network manager
-printf "enable network manager"
+printf "enable network manager\n"
 arch-chroot /mnt systemctl enable NetworkManager
 
 ##enable multilib
