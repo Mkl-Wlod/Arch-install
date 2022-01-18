@@ -27,7 +27,7 @@ cd Arch-install/ && ./archinstall
 If you have any other device in same network and it has ssh you can easly connect your installation arch and use it on other device by changing password `paswswd` and checking ip `ip a` on instalation, then connect to this by ssh root@your.ip.address.here 
 
 #### Issues
-Only root partition is encrypted even swap partition is created
+Only root partition is encrypted even swap partition is created, install yay (AUR package manager) not working because yet
 
 #### Plans
 At the end there will be one script, that will manage existing partitions, maybe option to not use lvm and cryptsetup
