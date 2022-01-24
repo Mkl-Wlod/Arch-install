@@ -1,5 +1,7 @@
 #!/bin/sh
 
+[ "$1" != "-v" ] && output=$(> /dev/null)
+
 #variables 
 disks=$(lsblk | awk '/disk/ {print $1 "\t" $4}')
 only_disks=$(lsblk -a -o TYPE,NAME,SIZE | awk '/disk/')
@@ -36,7 +38,7 @@ printf "want to clean up this disk? for now it's needed if any partition present
 read answer
 case "$answer" in
 	[yY]* ) 
-	  cryptsetup close $(lsblk | awk '/crypt/ {print $1}' | sed "s/[^[:alnum:]]//g")
+	  cryptsetup close $(lsblk | awk '/crypt/ {print $1}' | sed "s/[^[:alnum:]]//g" output )
 	  lvremove -y $(lsblk | awk -F - '/lvm/ {print $1}' | sed "s/[^[:alnum:]]//g")
 	  wipefs -a "$disk" ;;
 	[nN]* ) true ;;
@@ -288,7 +290,7 @@ read answer
 case "$answer" in
 	[yY]* ) pacstrap /mnt git
 		arch-chroot /mnt git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-		makepkg -si /tmp/yay-bin
+		runuser -u $name -- makepkg -si /tmp/yay-bin
 		;;
 	*) true ;;
 esac
