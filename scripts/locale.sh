@@ -10,6 +10,7 @@ if [ "$language" = "en" ];then
     sed 's/\..*// ; s/^#//g' | awk '{ ORS=" "; print $1 "\t"}' | uniq)
         printf '%s\nchoose english variant "US" is default: ' "$possibilities" 
     read lang_opt
+	[ -z "$(echo $lang_opt)" ] && lang_opt="US"
     case "$lang_opt" in
       *US) 
         sed -i '0,/en_US.UTF/d' /mnt/etc/locale.gen
