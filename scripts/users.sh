@@ -44,7 +44,7 @@ printf 'Allow privileged users to excute commands without password [y/n]: '
 read answer
 case "$answer" in
   [Yy]* ) sed -i '/NOPASSWD/s/^# //g' /mnt/etc/sudoers ;;
-  [Nn]* ) sed -i '0,/%wheel/s/^# //g' /mnt/etc/sudoers ;;
+  * ) sed -i '0,/%wheel/s/^# //g' /mnt/etc/sudoers ;;
 esac
 echo "succeed"
 
