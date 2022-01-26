@@ -36,9 +36,9 @@ printf "want to clean up this disk? for now it's needed if any partition present
 read answer
 case "$answer" in
 	* ) 
-	  cryptsetup close $(lsblk | awk '/crypt/ {print $1}' | sed "s/[^[:alnum:]]//g" )
-	  lvremove -y $(lsblk | awk -F - '/lvm/ {print $1}' | sed "s/[^[:alnum:]]//g")
-	  wipefs -a "$disk" ;;
+	  cryptsetup close $(lsblk | awk '/crypt/ {print $1}' | sed "s/[^[:alnum:]]//g" > /dev/null)
+	  lvremove -y $(lsblk | awk -F - '/lvm/ {print $1}' | sed "s/[^[:alnum:]]//g" > /dev/null)
+	  wipefs -a "$disk" > /dev/null ;;
 	[nN]* ) true ;;
 esac
 
@@ -127,8 +127,8 @@ parted -s "$disk" -- mklabel "gpt" \
   set 1 esp on \
   mkpart P2 ext4 512MiB 100%
 mkfs.vfat -F32 "$disk""$part"1
-pvcreate -f "$disk""$part"2
-vgcreate -f arch "$disk""$part"2
+pvcreate -ff -y "$disk""$part"2
+vgcreate -ff -y arch "$disk""$part"2
 
 ##create lvm
 #swap partition or file if hibernation not picked 
@@ -148,16 +148,21 @@ fi
 ##cryptsetup
 printf "\e[1m\tSetting up encryption to root partition\e[0m\n"
 printf 'Creating encrypted root partition\n'
+
 while true;do
-  cryptsetup -y luksFormat /dev/mapper/arch-home
-  if [ "$?" != "0" ];then
-    continue
-  else
-    break
-  fi
+	printf 'Type your passphrase for disk: '
+	read -s pass1
+	printf '\nVerify your passphrase: '
+	read -s pass
+	printf '\n'
+	[ "$pass1" = "$pass" ] && echo "Applays" && break
+	echo "Passphrases are not the same"
 done
-printf "\nMounting encrypted partition, enter password again\n"
-cryptsetup open /dev/mapper/arch-home cryptroot
+
+echo "$pass" | cryptsetup -q luksFormat /dev/mapper/arch-home
+#Mounting encrypted partition"
+echo "$pass" | cryptsetup open /dev/mapper/arch-home cryptroot
+
 cryptroot="/dev/mapper/cryptroot" 
 
 ##create filesystem on encrypted partiiton and mount them
