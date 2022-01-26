@@ -35,8 +35,8 @@ done
 printf "want to clean up this disk? for now it's needed if any partition present [y/n]: "
 read answer
 case "$answer" in
-	[yY]* ) 
-	  cryptsetup close $(lsblk | awk '/crypt/ {print $1}' | sed "s/[^[:alnum:]]//g")
+	* ) 
+	  cryptsetup close $(lsblk | awk '/crypt/ {print $1}' | sed "s/[^[:alnum:]]//g" )
 	  lvremove -y $(lsblk | awk -F - '/lvm/ {print $1}' | sed "s/[^[:alnum:]]//g")
 	  wipefs -a "$disk" ;;
 	[nN]* ) true ;;
@@ -59,11 +59,11 @@ mem_extend=$(free -m | awk '/Mem:/ {print $2}')
 
 #check for swap setup
 printf "\e[1m\tSwap\e[0m\nYou have \e[1m%s\e[0m of disk space and \e[1m%s\e[0m of memory
-Want you use swap? [y/n]: " "$disk_space" "$mem"
+Want you use swap? [y/N]: " "$disk_space" "$mem"
 read swp
 case "$swp" in
   [yY]* ) swap="yes";;
-  [nN]* ) swap="no";;
+  * ) swap="no";;
 esac
 
 #swap setup
@@ -77,11 +77,11 @@ if [ "$swap" = "yes" ];then
   >64GB\t\t|\tMinimum 4GB\t\t|\tHibernation not recommended
   "
   printf "You have \e[1m%s\e[0m of disk space and \e[1m%s\e[0m of memory
-  Want you use swap for hibernation? [y/n]: " "$disk_space" "$mem"
+  Want you use swap for hibernation? [y/N]: " "$disk_space" "$mem"
   read hib
   case "$hib" in
     [yY]* ) hibernation="yes";;
-    [nN]* ) hibernation="no";;
+    * ) hibernation="no";;
   esac
 
   ##[SWAP]
@@ -107,11 +107,11 @@ if [ "$swap" = "yes" ];then
     else 
       printf "You have %s of disk space and %s of memory
       Type value of \e[1mmegabytes (8G = 8000)\e[0m you want or type \e[1mn\e[0m for non swap
-      how much swap space you wan to allocate?: " "$disk_space" "$mem"
+      how much swap space you wan to allocate? leave empty to except swap: " "$disk_space" "$mem"
       read swap_own
       case "$swap_own" in
         [0-9]* ) swap_size="$swap_own";;
-        [nN]* ) swap="no";;
+        * ) swap="no";;
       esac
     fi
   fi
@@ -161,7 +161,7 @@ cryptsetup open /dev/mapper/arch-home cryptroot
 cryptroot="/dev/mapper/cryptroot" 
 
 ##create filesystem on encrypted partiiton and mount them
-printf "\e[1m\tChoose file system to root partition\e[0m\nPossibilities:\next4\tbtrfs\txfs\n"
+printf "\e[1m\tChoose file system to root partition\e[0m\nPossibilities:\next4-default\tbtrfs\txfs\n"
 printf "Filesystem: "
 read fs
 case "$fs" in 
@@ -173,19 +173,19 @@ esac
 mount "$cryptroot" /mnt && mkdir /mnt/boot && mount "$disk""$part"1 /mnt/boot
 
 ##kernel 
-printf '\e[1m\tKernel\e[0m\nYou want Long Term Support kernel? [y/n]: '
+printf '\e[1m\tKernel\e[0m\nYou want Long Term Support kernel? [Y/n]: '
 read linux
 case "$linux" in
-  [Yy]* ) kernel="linux-lts" ;;
   [Nn]* ) kernel="linux";;
+  * ) kernel="linux-lts" ;;
 esac 
 
 ##bootloader define
-printf '\e[1m\tBootloader\e[0m\nWhich bootloader you want to use? [systemd/efistub]: '
+printf '\e[1m\tBootloader\e[0m\nWhich bootloader you want to use? systemd is default [systemd/efistub]: '
 read boot
 case "$boot" in
   [eE]* ) boot_loader="efibootmgr" ;;
-  [sS]* ) boot_loader="bootctl" ;;
+  * ) boot_loader="bootctl" ;;
 esac 
 
 ##install needed packages to new system and generate fstab file
@@ -273,7 +273,7 @@ printf "enable network manager\n"
 arch-chroot /mnt systemctl enable NetworkManager
 
 ##enable multilib
-printf "enable multilib repository? [y/n]: "
+printf "enable multilib repository? [y/N]: "
 read answer
 case "$answer" in
 	[yY]* ) sed -i '/\#\[multilib\]/!b;n; s/\#//g' "$etc"pacman.conf
@@ -281,15 +281,4 @@ case "$answer" in
 		;;
 	*) true
 esac 
-
-##add git and yay (makepkg issue for now)
-printf "want to install git and yay? (An AUR Helper written in Go)? [y/n]: "
-read answer
-case "$answer" in
-	[yY]* ) pacstrap /mnt git
-		arch-chroot /mnt git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-		makepkg -si /tmp/yay-bin
-		;;
-	*) true ;;
-esac
 
