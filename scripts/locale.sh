@@ -4,11 +4,11 @@ while true;do
 printf "\e[1m\tLanguage Setup\e[0m
 choose your language by typing shorted name (example: en (default) | pl | fr )\nLanguage: "
 read language
-[ -z "$language" ] && language="US"
+[ -z "$(echo $language)" ] && language="en"
 if [ "$language" = "en" ];then
     possibilities=$(awk '/#en/ {print $1}' /mnt/etc/locale.gen |\
     sed 's/\..*// ; s/^#//g' | awk '{ ORS=" "; print $1 "\t"}' | uniq)
-        printf '%s\nchoose english variant: ' "$possibilities" 
+        printf '%s\nchoose english variant "US" is default: ' "$possibilities" 
     read lang_opt
     case "$lang_opt" in
       *US) 
