@@ -162,7 +162,7 @@ done
 echo "$pass" | cryptsetup -q luksFormat /dev/mapper/arch-home
 #Mounting encrypted partition"
 echo "$pass" | cryptsetup open /dev/mapper/arch-home cryptroot
-
+pass=""
 cryptroot="/dev/mapper/cryptroot" 
 
 ##create filesystem on encrypted partiiton and mount them
