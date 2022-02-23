@@ -278,11 +278,12 @@ printf "enable network manager\n"
 arch-chroot /mnt systemctl enable NetworkManager
 
 ##enable multilib
-printf "enable multilib repository? [y/N]: "
+printf "enable multilib repository? also turn color output? [y/N]: "
 read answer
 case "$answer" in
 	[yY]* ) sed -i '/\#\[multilib\]/!b;n; s/\#//g' "$etc"pacman.conf
 		sed -i 's/\#\[multilib\]/\[multilib\]/g' "$etc"pacman.conf
+		sed -i 's/\#Color/Color/g' "$etc"pacman.conf
 		;;
 	*) true
 esac 
