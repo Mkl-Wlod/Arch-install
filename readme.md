@@ -2,7 +2,7 @@
 
 Simple script to install arch linux on clean disk (this script can remove all partitions itself)
 
-you can use it in archiso by download git and jq (if you want to check and later set your timezone automatically)
+You can use it in archiso by download git and jq (if you want to find your timezone automatically during installation)
 
 ## Usage
 ```sh
@@ -12,22 +12,23 @@ cd Arch-install/ && ./archinstall
 ```
 
 ### Functionality
-- hibernation
-- swap file or partition if hibernation enabled
-- ext4, btrf, xfs file systems
-- systemd or efistub as bootloader (only UEFI setup, maybe add for BIOS option someday)
-- lvm and cryptsetup (for now no other option as partitioning)
-- install long term support kernel (LTS)
-- create privileged users and passwords for them
-- enable privileged users to use sudo without password
-- enable multilib repository
-- enable NetworkManager
+- Hibernation
+- Swap file or partition if hibernation enabled
+- Ext4, btrf, xfs file systems
+- Systemd or efistub as bootloader (only UEFI setup, maybe add for BIOS option someday)
+- Lvm and cryptsetup (for now no other option as partitioning)
+- Install long term support kernel (LTS)
+- Create privileged users and passwords for them
+- Enable privileged users to use sudo without password
+- Enable multilib repository
+- Enable NetworkManager
 
 ### Protips
 If you have any other device in same network and it has ssh you can easly connect your installation arch and use it on other device by changing password `paswswd` and checking ip `ip a` on instalation, then connect to this by ssh root@your.ip.address.here 
 
 #### Issues
-Only root partition is encrypted even swap partition is created, install yay (AUR package manager) not working because yet
+- Only root partition is encrypted even when swap partition is created
+- Install yay (AUR package manager) not working yet
 
 #### Plans
 At the end there will be one script, that will manage existing partitions, maybe option to not use lvm and cryptsetup
