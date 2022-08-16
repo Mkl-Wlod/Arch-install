@@ -5,10 +5,11 @@ links="http://ip-api.com/json/, https://freegeoip.app/json/, http://worldtimeapi
 timezone=$(curl http://ip-api.com/json/ | jq .timezone | sed "s/\"//g")
 
 while true;do
-printf 'locale setup\nyour possible timezone is "%s", want to use this timezone? [y/n]: ' "$timezone"
+printf 'locale setup\nyour possible timezone is "%s", want to use this timezone? [y/n/later]: ' "$timezone"
 read answer
 case "$answer" in
 	[yY]* ) arch-chroot /mnt timedatectl set-timezone "$timezone" && echo "timezone set to $timezone" && break ;;
+	[lL]ater ) break ;;
 	*)
 	zone_list_full=$(timedatectl list-timezones)
 	zone_list=$(timedatectl list-timezones | awk -F / '{ print $1 }' | uniq | tr '\r\n' '\t')
